@@ -1,0 +1,144 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import { supabaseAdmin } from '../lib/supabase';
+
+const riderId = Astro.locals.riderId!;
+
+const { data: contract } = await supabaseAdmin
+  .from('contracts')
+  .select('*')
+  .eq('rider_id', riderId)
+  .order('created_at', { ascending: false })
+  .limit(1)
+  .maybeSingle();
+
+const weeklyMin = Number(contract?.weekly_minimum || 500);
+const arrears = Number(contract?.arrears_balance || 0);
+const strikes = Number(contract?.underpayment_strikes || 0);
+const isLockedToMin = strikes >= 3;
+const suggestedAmount = weeklyMin + arrears;
+---
+
+<AppLayout title="Make Payment — Three Fingers Transport" mode="rider" activeNav="pay">
+  <div class="mb-5">
+    <h1 class="text-xl font-bold text-white">Pay Weekly Installment</h1>
+    <p class="text-xs text-slate-400 mt-1">
+      Payments are due every Monday. Overpaying reduces your balance faster; underpaying carries forward and counts toward your 3-strike limit.
+    </p>
+  </div>
+
+  {contract ? (
+    <div class="rounded-3xl bg-[#0e1b15] border border-white/10 p-5 shadow-xl">
+      <div class="flex items-center justify-between text-xs mb-4 pb-3 border-b border-white/10">
+        <span class="text-slate-400">Weekly Minimum</span>
+        <span class="text-white font-bold">GHS {weeklyMin.toLocaleString()}</span>
+      </div>
+
+      {arrears > 0 && (
+        <div class="mb-4 rounded-xl bg-amber-500/10 border border-amber-400/25 px-3.5 py-2.5 text-xs text-amber-200">
+          Current Arrears: <strong>GHS {arrears.toLocaleString()}</strong> (Suggested total to clear weekly + arrears: <strong>GHS {suggestedAmount.toLocaleString()}</strong>)
+        </div>
+      )}
+
+      {isLockedToMin && (
+        <div class="mb-4 rounded-xl bg-rose-950/70 border border-rose-500/40 px-3.5 py-2.5 text-xs text-rose-200">
+          You have <strong>3/3 underpayment strikes</strong>. You must pay at least <strong>GHS {weeklyMin.toLocaleString()}</strong> until arrears are cleared or 4 consecutive full weeks are completed.
+        </div>
+      )}
+
+      <form id="pay-form" class="space-y-4">
+        <input type="hidden" name="contractId" value={contract.id} />
+
+        <div>
+          <label for="amount" class="block text-xs font-medium text-slate-300 mb-1.5">
+            Amount to Pay (GHS)
+          </label>
+          <input
+            id="amount"
+            name="amount"
+            type="number"
+            step="1"
+            min={isLockedToMin ? weeklyMin : 1}
+            value={suggestedAmount}
+            required
+            class="w-full rounded-2xl bg-white/[0.06] border border-white/10 px-4 py-3.5 text-lg font-bold text-white focus:outline-none focus:border-amber-400"
+          />
+          <div class="flex gap-2 mt-2.5">
+            <button
+              type="button"
+              data-amt={weeklyMin}
+              class="preset-btn rounded-full bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-1 text-xs text-slate-200 cursor-pointer"
+            >
+              Weekly Min (GHS {weeklyMin})
+            </button>
+            {arrears > 0 && (
+              <button
+                type="button"
+                data-amt={suggestedAmount}
+                class="preset-btn rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 px-3 py-1 text-xs text-emerald-300 cursor-pointer"
+              >
+                Clear Weekly + Arrears (GHS {suggestedAmount})
+              </button>
+            )}
+          </div>
+        </div>
+
+        <p id="pay-error" class="text-xs text-rose-400 hidden"></p>
+
+        <button
+          type="submit"
+          id="pay-btn"
+          class="w-full rounded-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-bold py-3.5 text-sm shadow-lg shadow-amber-950/60 transition cursor-pointer"
+        >
+          Continue to Paystack MoMo
+        </button>
+      </form>
+    </div>
+  ) : (
+    <div class="rounded-2xl bg-[#0e1b15] border border-white/10 p-6 text-center text-sm text-slate-400">
+      No active contract found for your account.
+    </div>
+  )}
+
+  <script>
+    const form = document.getElementById('pay-form') as HTMLFormElement | null;
+    const amountInput = document.getElementById('amount') as HTMLInputElement | null;
+    const errEl = document.getElementById('pay-error') as HTMLParagraphElement | null;
+    const btn = document.getElementById('pay-btn') as HTMLButtonElement | null;
+
+    document.querySelectorAll('.preset-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        if (amountInput) amountInput.value = b.getAttribute('data-amt') || '';
+      });
+    });
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!amountInput || !btn || !errEl) return;
+      errEl.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = 'Starting Paystack...';
+
+      const fd = new FormData(form);
+      const res = await fetch('/api/paystack/initialize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contractId: fd.get('contractId'),
+          amount: Number(fd.get('amount')),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data?.data?.authorization_url) {
+        errEl.textContent = data.error || data.message || 'Unable to start payment.';
+        errEl.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Continue to Paystack MoMo';
+        return;
+      }
+
+      window.location.href = data.data.authorization_url;
+    });
+  </script>
+</AppLayout>

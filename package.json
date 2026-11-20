@@ -12,9 +12,13 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/netlify": "^8.2.14",
     "@astrojs/sitemap": "^3.7.6",
+    "@supabase/supabase-js": "^2.119.2",
     "@tailwindcss/vite": "^4.3.5",
     "astro": "^7.4.13",
+    "jose": "^6.2.18",
+    "pdf-lib": "^1.17.1",
     "tailwindcss": "^4.3.5"
   }
 }

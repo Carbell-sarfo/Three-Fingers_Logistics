@@ -1,0 +1,104 @@
+---
+import AppLayout from '../layouts/AppLayout.astro';
+import BrandLogo from '../components/BrandLogo.astro';
+import { verifyRiderToken } from '../lib/auth';
+
+const existing = Astro.cookies.get('tf_rider_token')?.value;
+if (existing && (await verifyRiderToken(existing))) {
+  return Astro.redirect('/dashboard');
+}
+---
+
+<AppLayout title="Rider Login — Three Fingers Transport" mode="mobile-auth">
+  <div class="w-full max-w-sm rounded-3xl bg-gradient-to-b from-[#2b1508]/95 via-[#131915] to-[#0b120e] border border-amber-500/20 p-6 sm:p-7 shadow-2xl">
+    <div class="flex flex-col items-center text-center mb-7">
+      <BrandLogo showName={false} />
+      <h1 class="text-2xl font-bold text-white mt-4">Sign In</h1>
+      <p class="text-xs sm:text-sm text-slate-400 mt-1">
+        Enter your phone number and 4-digit PIN to view your balance, pay weekly dues, and get receipts.
+      </p>
+    </div>
+
+    <form id="rider-login-form" class="space-y-4">
+      <div>
+        <label for="phone" class="block text-xs font-medium text-slate-300 mb-1.5">
+          Phone Number
+        </label>
+        <input
+          id="phone"
+          name="phone"
+          type="tel"
+          required
+          placeholder="0530 360 313"
+          class="w-full rounded-2xl bg-white/[0.06] border border-white/10 px-4 py-3 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
+        />
+      </div>
+
+      <div>
+        <label for="pin" class="block text-xs font-medium text-slate-300 mb-1.5">
+          4-Digit PIN
+        </label>
+        <input
+          id="pin"
+          name="pin"
+          type="password"
+          inputmode="numeric"
+          maxlength="4"
+          pattern="\d{4}"
+          required
+          placeholder="••••"
+          class="w-full rounded-2xl bg-white/[0.06] border border-white/10 px-4 py-3 text-white tracking-[0.45em] text-center text-base placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
+        />
+      </div>
+
+      <p id="error-msg" class="text-xs text-rose-400 hidden"></p>
+
+      <button
+        type="submit"
+        id="submit-btn"
+        class="w-full rounded-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white font-semibold py-3.5 text-sm shadow-lg shadow-amber-950/60 transition cursor-pointer mt-2"
+      >
+        Sign In
+      </button>
+    </form>
+
+    <div class="mt-6 pt-4 border-t border-white/10 flex items-center justify-between text-xs text-slate-400">
+      <span>Need PIN help? Contact Admin</span>
+      <a href="/admin/login" class="text-amber-300 hover:text-amber-200 font-medium">Admin →</a>
+    </div>
+  </div>
+
+  <script>
+    const form = document.getElementById('rider-login-form') as HTMLFormElement;
+    const errorMsg = document.getElementById('error-msg') as HTMLParagraphElement;
+    const btn = document.getElementById('submit-btn') as HTMLButtonElement;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.classList.add('hidden');
+      btn.disabled = true;
+      btn.textContent = 'Signing in...';
+
+      const fd = new FormData(form);
+      const res = await fetch('/api/auth/rider-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: fd.get('phone'),
+          pin: fd.get('pin'),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        errorMsg.textContent = data.error || 'Unable to sign in.';
+        errorMsg.classList.remove('hidden');
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+        return;
+      }
+
+      window.location.href = '/dashboard';
+    });
+  </script>
+</AppLayout>

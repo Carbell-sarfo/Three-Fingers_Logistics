@@ -1,0 +1,174 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { supabaseAdmin } from '../../lib/supabase';
+import { normalizeGhanaPhone } from '../../lib/auth';
+
+let feedback = '';
+let isError = false;
+
+if (Astro.request.method === 'POST') {
+  const fd = await Astro.request.formData();
+  const action = String(fd.get('action') || '');
+
+  if (action === 'create_rider') {
+    const id = String(fd.get('id') || '').trim().toUpperCase();
+    const fullName = String(fd.get('full_name') || '').trim();
+    const phone = normalizeGhanaPhone(String(fd.get('phone') || ''));
+    const pin = String(fd.get('pin') || '').trim();
+    const ghanaCard = String(fd.get('ghana_card') || '').trim();
+    const address = String(fd.get('address') || '').trim();
+    const guarantor1 = String(fd.get('guarantor_1') || '').trim();
+
+    if (!id || !fullName || !phone || !/^\d{4}$/.test(pin)) {
+      feedback = 'Rider ID, Full Name, Phone, and a 4-digit PIN are required.';
+      isError = true;
+    } else {
+      const { error } = await supabaseAdmin.rpc('upsert_rider_with_pin', {
+        p_id: id,
+        p_full_name: fullName,
+        p_phone: phone,
+        p_pin: pin,
+        p_ghana_card: ghanaCard || null,
+        p_address: address || null,
+        p_guarantor_1: guarantor1 || null,
+      });
+
+      if (error) {
+        feedback = `Error: ${error.message}`;
+        isError = true;
+      } else {
+        feedback = `Rider ${fullName} (${id}) saved with PIN ${pin}.`;
+      }
+    }
+  } else if (action === 'reset_pin') {
+    const riderId = String(fd.get('rider_id') || '');
+    const newPin = String(fd.get('new_pin') || '').trim();
+    if (!/^\d{4}$/.test(newPin)) {
+      feedback = 'New PIN must be 4 digits.';
+      isError = true;
+    } else {
+      const { error } = await supabaseAdmin.rpc('reset_rider_pin', {
+        p_rider_id: riderId,
+        p_new_pin: newPin,
+      });
+      if (error) {
+        feedback = `Error resetting PIN: ${error.message}`;
+        isError = true;
+      } else {
+        feedback = `PIN updated to ${newPin} for ${riderId}.`;
+      }
+    }
+  }
+}
+
+const { data: riders } = await supabaseAdmin
+  .from('riders')
+  .select('*')
+  .order('created_at', { ascending: false });
+
+const riderList = riders || [];
+const nextRiderNum = String(riderList.length + 1).padStart(4, '0');
+---
+
+<AppLayout title="Riders & PINs — Three Fingers Transport" mode="admin" activeNav="riders">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-white">Riders & 4-Digit PINs</h1>
+    <p class="text-xs text-slate-400 mt-1">Onboard riders and manage their portal login PINs.</p>
+  </div>
+
+  {feedback && (
+    <div
+      class:list={[
+        'mb-5 rounded-2xl p-4 text-xs border',
+        isError
+          ? 'bg-rose-950/60 border-rose-500/40 text-rose-200'
+          : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-200',
+      ]}
+    >
+      {feedback}
+    </div>
+  )}
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Add Rider Form -->
+    <form method="POST" class="rounded-2xl bg-[#0e1b15] border border-white/10 p-5 space-y-3.5 h-fit">
+      <input type="hidden" name="action" value="create_rider" />
+      <h2 class="text-base font-bold text-white">Add New Rider</h2>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">Rider ID</label>
+          <input name="id" value={`TF-RD-${nextRiderNum}`} required class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white" />
+        </div>
+        <div>
+          <label class="block text-[11px] text-slate-400 mb-1">4-Digit PIN</label>
+          <input name="pin" maxlength="4" pattern="\d{4}" placeholder="1234" required class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white" />
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-[11px] text-slate-400 mb-1">Full Name</label>
+        <input name="full_name" required placeholder="Kwame Mensah" class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white" />
+      </div>
+
+      <div>
+        <label class="block text-[11px] text-slate-400 mb-1">Phone Number</label>
+        <input name="phone" required placeholder="024 000 0000" class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white" />
+      </div>
+
+      <div>
+        <label class="block text-[11px] text-slate-400 mb-1">Ghana Card</label>
+        <input name="ghana_card" placeholder="GHA-000000000-0" class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white" />
+      </div>
+
+      <div>
+        <label class="block text-[11px] text-slate-400 mb-1">Address / Area</label>
+        <input name="address" placeholder="Madina / Adenta" class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white" />
+      </div>
+
+      <div>
+        <label class="block text-[11px] text-slate-400 mb-1">Guarantor 1 (Name & Phone)</label>
+        <input name="guarantor_1" placeholder="Yaw Boateng - 020 000 0000" class="w-full rounded-xl bg-white/5 border border-white/10 px-3 py-2 text-xs text-white" />
+      </div>
+
+      <button type="submit" class="w-full rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-2.5 text-xs cursor-pointer">
+        Save Rider Account
+      </button>
+    </form>
+
+    <!-- Riders Table -->
+    <div class="lg:col-span-2 rounded-2xl bg-[#0e1b15] border border-white/10 p-5">
+      <h2 class="text-base font-bold text-white mb-4">Registered Riders ({riderList.length})</h2>
+      <div class="divide-y divide-white/5">
+        {riderList.map((r: any) => (
+          <div class="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div class="text-sm font-bold text-white">
+                {r.full_name} <span class="text-xs font-normal text-emerald-300">({r.id})</span>
+              </div>
+              <div class="text-xs text-slate-400">
+                Phone: {r.phone} • {r.address || 'No address'} • Status: {r.status}
+              </div>
+            </div>
+
+            <form method="POST" class="flex items-center gap-2">
+              <input type="hidden" name="action" value="reset_pin" />
+              <input type="hidden" name="rider_id" value={r.id} />
+              <input
+                name="new_pin"
+                maxlength="4"
+                pattern="\d{4}"
+                placeholder="New PIN"
+                required
+                class="w-24 rounded-xl bg-white/5 border border-white/10 px-2.5 py-1.5 text-xs text-white text-center"
+              />
+              <button type="submit" class="rounded-xl bg-white/10 hover:bg-white/15 px-3 py-1.5 text-xs font-semibold text-amber-300 cursor-pointer">
+                Set PIN
+              </button>
+            </form>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</AppLayout>

@@ -1,0 +1,27 @@
+---
+interface Props {
+  showName?: boolean;
+  subtitle?: string;
+}
+
+const { showName = true, subtitle = 'Three Fingers Transport' } = Astro.props;
+---
+
+<div class="inline-flex items-center gap-3 select-none">
+  <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-amber-500 p-[1.5px] shadow-lg shadow-amber-950/40 shrink-0">
+    <div class="w-full h-full rounded-[10.5px] bg-[#091410] flex items-center justify-center">
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M5 17L9 7" stroke="#34D399" stroke-width="2.5" stroke-linecap="round" />
+        <path d="M11 18L15 6" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round" />
+        <path d="M17 17L20.5 9" stroke="#F97316" stroke-width="2.5" stroke-linecap="round" />
+      </svg>
+    </div>
+  </div>
+
+  {showName && (
+    <div class="leading-tight">
+      <div class="font-bold text-white tracking-tight text-base">Three Fingers Ltd.</div>
+      <div class="text-[11px] text-emerald-300/75 font-medium">{subtitle}</div>
+    </div>
+  )}
+</div>
