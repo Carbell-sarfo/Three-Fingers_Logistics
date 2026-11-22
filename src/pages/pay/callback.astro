@@ -1,0 +1,110 @@
+---
+import AppLayout from '../../layouts/AppLayout.astro';
+import { supabaseAdmin } from '../../lib/supabase';
+import { processVerifiedPayment } from '../../lib/ledger';
+
+const reference =
+  Astro.url.searchParams.get('reference') ||
+  Astro.url.searchParams.get('trxref') ||
+  '';
+
+const paystackSecret =
+  import.meta.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || '';
+
+let statusMessage = 'Verifying your payment...';
+let isSuccess = false;
+let receiptCode = '';
+
+if (!reference) {
+  statusMessage = 'Missing payment reference from Paystack.';
+} else if (!paystackSecret) {
+  statusMessage = 'Paystack secret key is not configured on the server.';
+} else {
+  try {
+    const verifyRes = await fetch(
+      `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${paystackSecret}`,
+        },
+      }
+    );
+    const verifyData = await verifyRes.json();
+
+    if (verifyRes.ok && verifyData?.status && verifyData?.data?.status === 'success') {
+      const tx = verifyData.data;
+      const amountGhs = Number(tx.amount || 0) / 100;
+      const contractId = tx.metadata?.contract_id;
+
+      const { data: existingPayment } = await supabaseAdmin
+        .from('payments')
+        .select('receipt_number')
+        .eq('reference_number', reference)
+        .maybeSingle();
+
+      if (existingPayment?.receipt_number) {
+        isSuccess = true;
+        receiptCode = existingPayment.receipt_number;
+        statusMessage = `Payment verified! Receipt ${receiptCode} is already on file.`;
+      } else if (contractId && amountGhs > 0) {
+        const created = await processVerifiedPayment({
+          contractId,
+          amount: amountGhs,
+          method: tx.channel === 'mobile_money' ? 'Paystack MoMo' : (tx.channel || 'Paystack'),
+          reference,
+          receivedBy: 'Paystack Auto',
+        });
+        isSuccess = true;
+        receiptCode = created?.receipt_number || '';
+        statusMessage = receiptCode
+          ? `Payment of GHS ${amountGhs.toLocaleString()} verified! Receipt ${receiptCode} issued.`
+          : `Payment of GHS ${amountGhs.toLocaleString()} verified!`;
+      } else {
+        isSuccess = true;
+        statusMessage = `Payment of GHS ${amountGhs.toLocaleString()} verified by Paystack.`;
+      }
+    } else {
+      statusMessage = verifyData?.message || 'Payment could not be verified.';
+    }
+  } catch (err: any) {
+    statusMessage = err?.message || 'Error verifying transaction with Paystack.';
+  }
+}
+---
+
+<AppLayout title="Payment Status — Three Fingers Transport" mode="rider" activeNav="pay">
+  <div class="rounded-3xl bg-[#0e1b15] border border-white/10 p-6 text-center space-y-4 mt-4">
+    <div
+      class:list={[
+        'mx-auto w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-bold',
+        isSuccess
+          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+          : 'bg-amber-500/20 text-amber-300 border border-amber-400/30',
+      ]}
+    >
+      {isSuccess ? '✓' : '!'}
+    </div>
+
+    <h1 class="text-lg font-bold text-white">
+      {isSuccess ? 'Payment Confirmed' : 'Payment Check'}
+    </h1>
+    <p class="text-xs text-slate-300 leading-relaxed">{statusMessage}</p>
+
+    <div class="pt-2 flex flex-col gap-2.5">
+      <a
+        href="/dashboard"
+        class="w-full rounded-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold py-3 text-xs shadow-lg"
+      >
+        Back to My Dashboard
+      </a>
+      {receiptCode && (
+        <a
+          href={`/api/pdf/receipt/${receiptCode}`}
+          class="w-full rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-emerald-300 font-semibold py-2.5 text-xs"
+        >
+          Download Receipt PDF ({receiptCode})
+        </a>
+      )}
+    </div>
+  </div>
+</AppLayout>

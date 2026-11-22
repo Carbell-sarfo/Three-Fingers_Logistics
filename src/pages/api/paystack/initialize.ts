@@ -1,24 +1,32 @@
 import type { APIRoute } from 'astro';
 import { supabaseAdmin } from '../../../lib/supabase';
 
-const paystackSecret =
-  import.meta.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || '';
-const siteUrl = (
-  import.meta.env.PUBLIC_SITE_URL ||
-  process.env.PUBLIC_SITE_URL ||
-  'http://localhost:4321'
-).replace(/\/+$/, '');
-
 function isValidEmail(val: unknown): val is string {
   return typeof val === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim());
 }
 
-export const POST: APIRoute = async ({ request, locals }) => {
+export const POST: APIRoute = async ({ request, locals, url }) => {
   try {
     const riderId = locals.riderId;
     if (!riderId) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
+
+    const paystackSecret =
+      import.meta.env.PAYSTACK_SECRET_KEY || process.env.PAYSTACK_SECRET_KEY || '';
+    if (!paystackSecret) {
+      return new Response(
+        JSON.stringify({ error: 'Paystack secret key is not configured.' }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const configuredSiteUrl =
+      import.meta.env.PUBLIC_SITE_URL || process.env.PUBLIC_SITE_URL || '';
+    const siteUrl = (configuredSiteUrl || url.origin).replace(/\/+$/, '');
 
     const { contractId, amount } = await request.json();
     const numericAmount = Number(amount);
@@ -26,7 +34,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (!contractId || !Number.isFinite(numericAmount) || numericAmount <= 0) {
       return new Response(
         JSON.stringify({ error: 'Please enter a valid payment amount.' }),
-        { status: 400 }
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
@@ -39,6 +47,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (riderErr || !rider) {
       return new Response(JSON.stringify({ error: 'Rider profile not found.' }), {
         status: 404,
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -52,6 +61,7 @@ export const POST: APIRoute = async ({ request, locals }) => {
     if (contractErr || !contract) {
       return new Response(JSON.stringify({ error: 'Contract not found.' }), {
         status: 404,
+        headers: { 'Content-Type': 'application/json' },
       });
     }
 
@@ -63,11 +73,12 @@ export const POST: APIRoute = async ({ request, locals }) => {
         JSON.stringify({
           error: `With 3 underpayment strikes, payment must be at least GHS ${weeklyMin}.`,
         }),
-        { status: 400 }
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    const cleanPhone = String(rider.phone || '').replace(/\D/g, '') || riderId.toLowerCase();
+    const cleanPhone =
+      String(rider.phone || '').replace(/\D/g, '') || riderId.toLowerCase();
     const payerEmail = isValidEmail((rider as any).email)
       ? (rider as any).email.trim()
       : `rider.${cleanPhone}@threefingersgh.com`;
@@ -82,7 +93,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         email: payerEmail,
         amount: Math.round(numericAmount * 100), // pesewas
         currency: 'GHS',
-        callback_url: `${siteUrl}/dashboard`,
+        callback_url: `${siteUrl}/pay/callback`,
+        cancel_action: `${siteUrl}/pay`,
         metadata: {
           rider_id: rider.id,
           rider_name: rider.full_name,
@@ -100,15 +112,18 @@ export const POST: APIRoute = async ({ request, locals }) => {
         JSON.stringify({
           error: psData?.message || 'Paystack initialization failed.',
         }),
-        { status: 400 }
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
-    return new Response(JSON.stringify(psData), { status: 200 });
+    return new Response(JSON.stringify(psData), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err?.message || 'Payment initialization error.' }),
-      { status: 500 }
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 };
