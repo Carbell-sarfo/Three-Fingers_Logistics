@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { sendSms } from './mnotify';
+// import { sendSms } from './mnotify';
 
 export const supabaseAdmin = createClient(
   import.meta.env.SUPABASE_URL,
@@ -104,22 +104,23 @@ export async function processVerifiedPayment(params: {
     .eq('id', contract.id);
 
   // 5. Send instant mNotify SMS receipt & warning (if underpaid)
-  const remaining = contract.contract_type === 'lease_to_own'
-    ? Math.max(0, Number(contract.contract_value) - totalPaid - depositCredit)
-    : 0;
+//   const remaining = contract.contract_type === 'lease_to_own'
+//     ? Math.max(0, Number(contract.contract_value) - totalPaid - depositCredit)
+//     : 0;
 
-  let smsText = `Three Fingers Transport: GHS ${params.amount} received (Receipt ${payment.receipt_number}, Wk ${weekNumber}). `;
-  if (contract.contract_type === 'lease_to_own') {
-    smsText += `Balance: GHS ${remaining}. `;
-  }
-  if (shortfall > 0) {
-    smsText += `WARNING: Underpayment of GHS ${shortfall} carried forward (Strike ${strikes}/3).`;
-  } else if (arrears > 0) {
-    smsText += `Arrears left: GHS ${arrears}.`;
-  } else {
-    smsText += `Account in good standing.`;
-  }
+//   let smsText = `Three Fingers Transport: GHS ${params.amount} received (Receipt ${payment.receipt_number}, Wk ${weekNumber}). `;
+//   if (contract.contract_type === 'lease_to_own') {
+//     smsText += `Balance: GHS ${remaining}. `;
+//   }
+//   if (shortfall > 0) {
+//     smsText += `WARNING: Underpayment of GHS ${shortfall} carried forward (Strike ${strikes}/3).`;
+//   } else if (arrears > 0) {
+//     smsText += `Arrears left: GHS ${arrears}.`;
+//   } else {
+//     smsText += `Account in good standing.`;
+//   }
 
-  await sendSms(contract.riders.phone, smsText);
-  return payment;
+//   await sendSms(contract.riders.phone, smsText);
+//   return payment;
+// }
 }
