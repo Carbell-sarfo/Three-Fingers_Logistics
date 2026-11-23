@@ -1,11 +1,97 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
+import AppLayout from '../layouts/AppLayout.astro';
+import BrandLogo from '../components/BrandLogo.astro';
+import { verifyRiderToken } from '../lib/auth';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+const riderToken = Astro.cookies.get('tf_rider_token')?.value;
+const riderSession = riderToken ? await verifyRiderToken(riderToken) : null;
+const isAdminLoggedIn = Boolean(Astro.cookies.get('sb-access-token')?.value);
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<AppLayout title="Three Fingers Logistics — Fleet & Rider Portal" mode="mobile-auth">
+  <div class="w-full max-w-4xl mx-auto py-6 sm:py-10">
+    <!-- Top Bar -->
+    <header class="flex items-center justify-between gap-4 mb-12">
+      <BrandLogo subtitle="Transport & Logistics" />
+
+      <div class="flex items-center gap-2.5">
+        <a
+          href={isAdminLoggedIn ? '/admin' : '/admin/login'}
+          class="rounded-full bg-white/[0.05] hover:bg-white/[0.1] border border-white/10 px-4 py-2 text-xs font-semibold text-slate-300 transition"
+        >
+          {isAdminLoggedIn ? 'Admin Dashboard' : 'Admin'}
+        </a>
+        <a
+          href={riderSession ? '/dashboard' : '/login'}
+          class="rounded-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-amber-950/50 transition"
+        >
+          {riderSession ? 'My Dashboard' : 'Rider Login'}
+        </a>
+      </div>
+    </header>
+
+    <!-- Hero Card -->
+    <section class="rounded-3xl bg-gradient-to-b from-[#132a20]/95 via-[#0f1a15] to-[#0b120e] border border-emerald-500/20 p-7 sm:p-12 shadow-2xl">
+      <div class="max-w-2xl">
+        <div class="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-400/25 px-3.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-300 mb-5">
+          Greater Accra Fleet Operations
+        </div>
+
+        <h1 class="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-[1.12]">
+          Simple weekly payments. <span class="text-amber-400">Clear path to ownership.</span>
+        </h1>
+
+        <p class="mt-4 text-sm sm:text-base text-slate-300 leading-relaxed">
+          Log in with your phone number and 4-digit PIN to pay your Monday installment via Mobile Money, track your contract balance, and download verified PDF receipts anytime.
+        </p>
+
+        <div class="mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5">
+          <a
+            href={riderSession ? '/dashboard' : '/login'}
+            class="text-center rounded-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-amber-950/60 transition"
+          >
+            {riderSession ? 'Go to Rider Dashboard →' : 'Sign In to Rider Portal →'}
+          </a>
+          <a
+            href={isAdminLoggedIn ? '/admin' : '/admin/login'}
+            class="text-center rounded-full bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 px-6 py-3.5 text-sm font-semibold text-emerald-200 transition"
+          >
+            Fleet Command Login
+          </a>
+        </div>
+      </div>
+
+      <!-- 3-Column Contract & Platform Highlights -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10 pt-8 border-t border-white/10">
+        <div class="rounded-2xl bg-black/25 border border-white/5 p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-amber-400">Lease-to-Own</div>
+          <div class="text-lg font-extrabold text-white mt-1">GHS 500 / wk</div>
+          <p class="text-xs text-slate-400 mt-1">
+            Every verified payment reduces your balance toward full motorbike ownership.
+          </p>
+        </div>
+
+        <div class="rounded-2xl bg-black/25 border border-white/5 p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-emerald-400">Pure Sales</div>
+          <div class="text-lg font-extrabold text-white mt-1">GHS 300 / wk</div>
+          <p class="text-xs text-slate-400 mt-1">
+            Straightforward weekly rentals backed by a 2-week refundable security deposit.
+          </p>
+        </div>
+
+        <div class="rounded-2xl bg-black/25 border border-white/5 p-4">
+          <div class="text-xs font-bold uppercase tracking-wider text-teal-300">Instant Receipts</div>
+          <div class="text-lg font-extrabold text-white mt-1">MoMo + PDF</div>
+          <p class="text-xs text-slate-400 mt-1">
+            Pay via Paystack Mobile Money with instant SMS confirmation and PDF statements.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <footer class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 px-2">
+      <span>© {new Date().getFullYear()} Three Fingers Ltd. Accra, Ghana.</span>
+      <span>Monday Weekly Cycle • Automated Ledger</span>
+    </footer>
+  </div>
+</AppLayout>
